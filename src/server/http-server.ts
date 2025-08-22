@@ -756,8 +756,144 @@ app.post("/gemini", async (req, res) => {
 
   try {
     const result = await handleGeminiFunctionCall(prompt);
-    res.json(result);
-  } catch (error: any) {
+
+    if (result.functionName) {
+      let output;
+
+      switch (result.functionName) {
+        case "get_balance":
+          output = await getBalance(result.args.address, result.args.network);
+          break;
+        case "get_erc20_balance":
+          output = await getERC20Balance(result.args.tokenAddress, result.args.ownerAddress, result.args.network);
+          break;
+        case "is_nft_owner":
+          output = await isNFTOwner(result.args.tokenAddress, result.args.ownerAddress, result.args.tokenId, result.args.network);
+          break;
+        case "get_erc721_balance":
+          output = await getERC721Balance(result.args.tokenAddress, result.args.ownerAddress, result.args.network);
+          break;
+        case "get_erc1155_balance":
+          output = await getERC1155Balance(result.args.tokenAddress, result.args.ownerAddress, result.args.tokenId, result.args.network);
+          break;
+        case "get_address_from_private_key":
+          output = await getAddressFromPrivateKey(result.args.privateKey);
+          break;
+        case "get_chain_info":
+          output = await getChainInfo(result.args.network);
+          break;
+        case "create_wallet_client":
+          output = await getWalletClient(result.args.privateKey, result.args.network);
+          break;
+        case "get_block_number":
+          output = await getBlockNumber(result.args.network);
+          break;
+        case "get_block_by_number":
+          output = await getBlockByNumber(result.args.blockNumber, result.args.network);
+          break;
+        case "get_block_by_hash":
+          output = await getBlockByHash(result.args.blockHash, result.args.network);
+          break;
+        case "get_latest_block":
+          output = await getLatestBlock(result.args.network);
+          break;
+        case "read_contract":
+          output = await readContract(result.args.network /* , other contract params */);
+          break;
+        case "write_contract":
+          output = await writeContract(result.args.network, result.args.params /* , other params */);
+          break;
+        case "get_logs":
+          output = await getLogs(result.args.network /* , other params */);
+          break;
+        case "is_contract":
+          output = await isContract(result.args.address, result.args.network);
+          break;
+        case "get_supported_networks":
+          output = await getSupportedNetworks();
+          break;
+        case "get_network_status":
+          output = await getNetworkStatus(result.args.network);
+          break;
+        case "get_nft_collection":
+          output = await getNFTCollection(result.args.contractAddress, result.args.network);
+          break;
+        case "get_nft_ownership":
+          output = await getNFTOwnership(result.args.contractAddress, result.args.tokenId, result.args.network);
+          break;
+        case "get_nft_metadata":
+          output = await getNFTMetadata(result.args.contractAddress, result.args.tokenId, result.args.network);
+          break;
+        case "get_nft_history":
+          output = await getNFTHistory(result.args.contractAddress, result.args.tokenId, result.args.network);
+          break;
+        case "get_user_nfts":
+          output = await getUserNFTs(result.args.address, result.args.network);
+          break;
+        case "get_erc721_token_metadata":
+          output = await getERC721TokenMetadata(result.args.contractAddress, result.args.tokenId, result.args.network);
+          break;
+        case "get_erc1155_token_uri":
+          output = await getERC1155TokenURI(result.args.contractAddress, result.args.tokenId, result.args.network);
+          break;
+        case "check_nft_ownership":
+          output = await getNFTOwnership(result.args.contractAddress, result.args.tokenId, result.args.ownerAddress, result.args.network);
+          break;
+        case "get_nft_balance":
+          output = await getNFTBalance(result.args.contractAddress, result.args.ownerAddress, result.args.network);
+          break;
+        case "get_erc20_token_info":
+          output = await getERC20TokenInfo(result.args.tokenAddress, result.args.network);
+          break;
+        case "get_transaction":
+          output = await getTransaction(result.args.hash, result.args.network);
+          break;
+        case "get_transaction_receipt":
+          output = await getTransactionReceipt(result.args.hash, result.args.network);
+          break;
+        case "get_transaction_count":
+          output = await getTransactionCount(result.args.address, result.args.network);
+          break;
+        case "estimate_gas":
+          output = await estimateGas(result.args.params, result.args.network);
+          break;
+        case "get_chain_id":
+          output = await getChainId(result.args.network);
+          break;
+        case "get_transaction_history":
+          output = await getTransactionHistory(result.args.address, result.args.network, result.args.limit);
+          break;
+        case "get_wallet_activity":
+          output = await getWalletActivity(result.args.address, result.args.network);
+          break;
+        case "transfer_sei":
+          output = await transferSei(result.args.toAddress, result.args.amount, result.args.network);
+          break;
+        case "transfer_erc20":
+          output = await transferERC20(result.args.tokenAddress, result.args.toAddress, result.args.amount, result.args.network);
+          break;
+        case "approve_erc20":
+          output = await approveERC20(result.args.tokenAddress, result.args.spenderAddress, result.args.amount, result.args.network);
+          break;
+        case "transfer_erc721":
+          output = await transferERC721(result.args.tokenAddress, result.args.toAddress, result.args.tokenId, result.args.network);
+          break;
+        case "transfer_erc1155":
+          output = await transferERC1155(result.args.tokenAddress, result.args.toAddress, result.args.tokenId, result.args.amount, result.args.network);
+          break;
+        case "analyze_wallet":
+          output = await analyzeWallet(result.args.address, result.args.network);
+          break;
+        default:
+          return res.status(400).json({ error: "Unknown function" });
+      }
+
+      res.json({ functionName: result.functionName, args: result.args, output });
+
+    } else {
+      res.json(result);
+    }
+  } catch (error) {
     res.status(500).json({ error: error.message || String(error) });
   }
 });
