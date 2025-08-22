@@ -75,18 +75,16 @@ const erc1155Abi = [
 export async function getBalance(
   address: string,
   network = DEFAULT_NETWORK
-): Promise<{ wei: bigint; sei: string }> {
+): Promise<{ sei: string }> {
   const validatedAddress = services.helpers.validateAddress(address);
-
   const client = getPublicClient(network);
-  const balance = await client.getBalance({ address: validatedAddress });
+  const rawBalance = await client.getBalance({ address: validatedAddress });
 
-  return {
-    wei: balance,
-    sei: formatEther(balance)
-  };
+  // Convert to SEI
+  const sei = (Number(rawBalance) / 1e18).toString();
+
+  return { sei };
 }
-
 /**
  * Get the balance of an ERC20 token for an address
  * @param tokenAddress Token contract address

@@ -14,8 +14,9 @@ import { getERC20TokenInfo, } from "../core/services/tokens.js";
 import { getTransaction, getTransactionReceipt, getTransactionCount, estimateGas, getChainId, getTransactionHistory, getWalletActivity, } from "../core/services/transactions.js";
 import { transferSei, transferERC20, approveERC20, transferERC721, transferERC1155, } from "../core/services/transfer.js";
 import { analyzeWallet } from "../core/services/wallet.js";
-import {handleGeminiFunctionCall} from "../core/services/geminiService.js";
-
+import { handleGeminiFunctionCall } from "../core/services/geminiService.js";
+import { utils } from "../core/services/utils.js"
+import { GoogleGenAI } from "@google/genai";
 config();
 
 const PORT = 3004;
@@ -32,6 +33,8 @@ app.use(
     exposedHeaders: ["Content-Type", "Access-Control-Allow-Origin"]
   })
 );
+
+
 
 app.options("*", cors());
 
@@ -888,7 +891,25 @@ app.post("/gemini", async (req, res) => {
           return res.status(400).json({ error: "Unknown function" });
       }
 
-      res.json({ functionName: result.functionName, args: result.args, output });
+      const oldOutput = {
+        functionName: result.functionName,
+        args: result.args,
+        output: serializeBigInt(output)
+      };
+
+      // Send to client
+      const geminiPrompt = `Summarize the following wallet JSON for the user:\n${JSON.stringify(oldOutput, null, 2)}`;
+
+      // Call Gemini
+      const ai = new GoogleGenAI({});
+      const geminiResponse = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: geminiPrompt,
+      });
+
+      res.json({
+        summary: geminiResponse.text
+      });
 
     } else {
       res.json(result);
@@ -897,7 +918,6 @@ app.post("/gemini", async (req, res) => {
     res.status(500).json({ error: error.message || String(error) });
   }
 });
-
 app.get("/health", (req: Request, res: Response) => {
   res.status(200).json({
     status: "ok",
@@ -958,7 +978,7 @@ app.get("/", (req: Request, res: Response) => {
       transferERC1155: "/transferERC1155",
       analyzeWallet: "/analyzeWallet",
       gemini: "/gemini",
-      
+
     },
     status: server ? "ready" : "initializing",
     activeConnections: connections.size
