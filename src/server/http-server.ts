@@ -14,6 +14,7 @@ import { getERC20TokenInfo, } from "../core/services/tokens.js";
 import { getTransaction, getTransactionReceipt, getTransactionCount, estimateGas, getChainId, getTransactionHistory, getWalletActivity, } from "../core/services/transactions.js";
 import { transferSei, transferERC20, approveERC20, transferERC721, transferERC1155, } from "../core/services/transfer.js";
 import { analyzeWallet } from "../core/services/wallet.js";
+import {handleGeminiFunctionCall} from "../core/services/geminiService.js";
 
 config();
 
@@ -744,6 +745,23 @@ app.get("/analyzeWallet", async (req, res) => {
   }
 });
 
+
+//--------------------------------------------------------GeminiIntigration----------------------------------------------------
+
+
+
+app.post("/gemini", async (req, res) => {
+  const { prompt } = req.body;
+  if (!prompt) return res.status(400).json({ error: "Missing prompt" });
+
+  try {
+    const result = await handleGeminiFunctionCall(prompt);
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || String(error) });
+  }
+});
+
 app.get("/health", (req: Request, res: Response) => {
   res.status(200).json({
     status: "ok",
@@ -783,6 +801,7 @@ app.get("/", (req: Request, res: Response) => {
       getNetworkStatus: "/getNetworkStatus",
       getNFTCollection: "/getNFTCollection",
       getNFTMetadata: "/getNFTMetadata",
+      getNFTBalance: "/getNFTBalance",
       getNFTHistory: "/getNFTHistory",
       getUserNFTs: "/getUserNFTs",
       getERC721TokenMetadata: "/getERC721TokenMetadata",
@@ -801,7 +820,9 @@ app.get("/", (req: Request, res: Response) => {
       approveERC20: "/approveERC20",
       transferERC721: "/transferERC721",
       transferERC1155: "/transferERC1155",
-      analyzeWallet: "/analyzeWallet"
+      analyzeWallet: "/analyzeWallet",
+      gemini: "/gemini",
+      
     },
     status: server ? "ready" : "initializing",
     activeConnections: connections.size
@@ -867,7 +888,8 @@ Endpoints:
 - approveERC20: /approveERC20
 - transferERC721: /transferERC721
 - transferERC1155: /transferERC1155
-- analyzeWallet: /analyzeWallet`
+- analyzeWallet: /analyzeWallet
+- gemini: /gemini`
   );
 }).on("error", (err: Error) => {
   console.error(`Server error: ${err}`);
