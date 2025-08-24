@@ -4,18 +4,17 @@ import startServer from "./server.js";
 import express, { Request, Response } from "express";
 import cors from "cors";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { getBalance, getERC20Balance, isNFTOwner, getERC721Balance, getERC1155Balance } from "../core/services/balance.js"; // Adjust path as needed
+import { getBalance, isNFTOwner } from "../core/services/balance.js"; // Only getBalance, isNFTOwner endpoints are present
 import { getBlockByNumber, getBlockByHash, getBlockNumber, getLatestBlock } from "../core/services/blocks.js";
 import { getPublicClient, getWalletClient, getAddressFromPrivateKey } from "../core/services/clients.js";
-import { readContract, writeContract, getLogs, isContract } from "../core/services/contracts.js"
-import { getSupportedNetworks, getChainInfo, getNetworkStatus } from "../core/services/network.js"
-import { getNFTCollection, getNFTOwnership, getNFTMetadata, getNFTHistory, getUserNFTs, getERC721TokenMetadata, getERC1155TokenURI, getNFTBalance } from "../core/services/nfts.js"//some issue
-import { getERC20TokenInfo, } from "../core/services/tokens.js";
-import { getTransaction, getTransactionReceipt, getTransactionCount, estimateGas, getChainId, getTransactionHistory, getWalletActivity, } from "../core/services/transactions.js";
-import { transferSei, transferERC20, approveERC20, transferERC721, transferERC1155, } from "../core/services/transfer.js";
+import { readContract, writeContract, isContract } from "../core/services/contracts.js";
+import { getSupportedNetworks, getChainInfo, getNetworkStatus } from "../core/services/network.js";
+import { getNFTCollection, getNFTOwnership, getNFTMetadata, getNFTHistory, getUserNFTs, getNFTBalance, checkNFTOwnership } from "../core/services/nfts.js";
+import { getTransaction, getTransactionReceipt, getTransactionCount, estimateGas, getChainId, getTransactionHistory, getWalletActivity } from "../core/services/transactions.js";
+import { transferSei } from "../core/services/transfer.js";
 import { analyzeWallet } from "../core/services/wallet.js";
 import { handleGeminiFunctionCall } from "../core/services/geminiService.js";
-import { utils } from "../core/services/utils.js"
+import { utils } from "../core/services/utils.js";
 import { GoogleGenAI } from "@google/genai";
 config();
 
@@ -120,7 +119,7 @@ app.get("/getbalance", async (req: Request, res: Response) => {
   try {
     const result = await getBalance(address, network);
     res.status(200).json({
-      wei: result.wei.toString(),  // serialize BigInt as string
+        // serialize BigInt as string
       sei: result.sei
     });
   } catch (error: any) {
@@ -128,26 +127,6 @@ app.get("/getbalance", async (req: Request, res: Response) => {
   }
 });
 
-/**
- * Get ERC20 token balance for an address
- * GET /getERC20Balance?tokenAddress=...&ownerAddress=...&network=...
- */
-app.get("/getERC20Balance", async (req: Request, res: Response) => {
-  const { tokenAddress, ownerAddress, network } = req.query;
-  if (typeof tokenAddress !== "string" || typeof ownerAddress !== "string" || typeof network !== "string") {
-    return res.status(400).json({ error: "Missing tokenAddress, ownerAddress or network parameter" });
-  }
-  try {
-    const result = await getERC20Balance(tokenAddress, ownerAddress, network);
-    res.status(200).json({
-      raw: result.raw.toString(),  // serialize BigInt as string
-      formatted: result.formatted,
-      token: result.token
-    });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || String(error) });
-  }
-});
 
 /**
  * Check if an address owns a specific NFT
@@ -168,40 +147,6 @@ app.get("/isNFTOwner", async (req: Request, res: Response) => {
   }
 });
 
-/**
- * Get number of ERC721 NFTs owned by an address for a collection
- * GET /getERC721Balance?tokenAddress=...&ownerAddress=...&network=...
- */
-app.get("/getERC721Balance", async (req: Request, res: Response) => {
-  const { tokenAddress, ownerAddress, network } = req.query;
-  if (typeof tokenAddress !== "string" || typeof ownerAddress !== "string" || typeof network !== "string") {
-    return res.status(400).json({ error: "Missing one or more parameters" });
-  }
-  try {
-    const balance = await getERC721Balance(tokenAddress, ownerAddress, network);
-    res.status(200).json({ balance: balance.toString() }); // serialize BigInt
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || String(error) });
-  }
-});
-
-/**
- * Get ERC1155 token balance for an address and tokenId
- * GET /getERC1155Balance?tokenAddress=...&ownerAddress=...&tokenId=...&network=...
- */
-app.get("/getERC1155Balance", async (req: Request, res: Response) => {
-  const { tokenAddress, ownerAddress, tokenId, network } = req.query;
-  if (typeof tokenAddress !== "string" || typeof ownerAddress !== "string" || typeof tokenId !== "string" || typeof network !== "string") {
-    return res.status(400).json({ error: "Missing one or more parameters" });
-  }
-  try {
-    const tokenIdBigInt = BigInt(tokenId);
-    const balance = await getERC1155Balance(tokenAddress, ownerAddress, tokenIdBigInt, network);
-    res.status(200).json({ balance: balance.toString() }); // serialize BigInt
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || String(error) });
-  }
-});
 // --------------------------------------------------------client functions --------------------------------------------------------------
 
 
@@ -335,10 +280,9 @@ function serializeBigInt(obj: any): any {
 
 
 
-app.get("/readContract", async (req: Request, res: Response) => {
-  const { network, ...params } = req.query;
+app.post("/readContract", async (req: Request, res: Response) => {
+  const { network, ...params } = req.body;
   try {
-    // Assume params are passed as query parameters matching ReadContractParameters
     const result = await readContract(params as any, typeof network === "string" ? network : undefined);
     res.status(200).json(serializeBigInt(result));
   } catch (error: any) {
@@ -361,17 +305,6 @@ app.post("/writeContract", async (req: Request, res: Response) => {
   }
 });
 
-// Get logs
-app.get("/getLogs", async (req: Request, res: Response) => {
-  const { network, ...params } = req.query;
-  try {
-    // Assume params are passed as query parameters matching GetLogsParameters
-    const logs = await getLogs(params as any, typeof network === "string" ? network : undefined);
-    res.status(200).json(serializeBigInt(logs));
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || String(error) });
-  }
-});
 
 // Check if address is a contract
 app.get("/isContract", async (req: Request, res: Response) => {
@@ -482,29 +415,7 @@ app.get("/getUserNFTs", async (req: Request, res: Response) => {
   }
 });
 
-// Get ERC721 token metadata
-app.get("/getERC721TokenMetadata", async (req: Request, res: Response) => {
-  const { contractAddress, tokenId, network } = req.query;
-  if (typeof contractAddress !== "string" || typeof tokenId !== "string") return res.status(400).json({ error: "Missing contractAddress or tokenId" });
-  try {
-    const result = await getERC721TokenMetadata(contractAddress, tokenId, typeof network === "string" ? network : undefined);
-    res.status(200).json(serializeBigInt(result));
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || String(error) });
-  }
-});
 
-// Get ERC1155 token URI
-app.get("/getERC1155TokenURI", async (req: Request, res: Response) => {
-  const { contractAddress, tokenId, network } = req.query;
-  if (typeof contractAddress !== "string" || typeof tokenId !== "string") return res.status(400).json({ error: "Missing contractAddress or tokenId" });
-  try {
-    const result = await getERC1155TokenURI(contractAddress, tokenId, typeof network === "string" ? network : undefined);
-    res.status(200).json({ uri: result });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || String(error) });
-  }
-});
 
 // Check NFT ownership
 app.get("/checkNFTOwnership", async (req: Request, res: Response) => {
@@ -532,32 +443,8 @@ app.get("/getNFTBalance", async (req: Request, res: Response) => {
   }
 });
 
-// Get ERC1155 balance
-app.get("/getERC1155Balance", async (req: Request, res: Response) => {
-  const { contractAddress, tokenId, ownerAddress, network } = req.query;
-  if (typeof contractAddress !== "string" || typeof tokenId !== "string" || typeof ownerAddress !== "string")
-    return res.status(400).json({ error: "Missing contractAddress, tokenId, or ownerAddress" });
-  try {
-    const result = await getERC1155Balance(contractAddress, tokenId, ownerAddress, typeof network === "string" ? network : undefined);
-    res.status(200).json(serializeBigInt(result));
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || String(error) });
-  }
-});
-
 
 //-------------------------------------------------------token-----------------------------------------------------------------
-
-app.get("/getERC20TokenInfo", async (req, res) => {
-  const { tokenAddress, network } = req.query;
-  if (typeof tokenAddress !== "string") return res.status(400).json({ error: "Missing tokenAddress" });
-  try {
-    const result = await getERC20TokenInfo(tokenAddress, typeof network === "string" ? network : undefined);
-    res.status(200).json(serializeBigInt(result));
-  } catch (error) {
-    res.status(500).json({ error: error.message || String(error) });
-  }
-});
 
 
 
@@ -767,17 +654,8 @@ app.post("/gemini", async (req, res) => {
         case "get_balance":
           output = await getBalance(result.args.address, result.args.network);
           break;
-        case "get_erc20_balance":
-          output = await getERC20Balance(result.args.tokenAddress, result.args.ownerAddress, result.args.network);
-          break;
         case "is_nft_owner":
           output = await isNFTOwner(result.args.tokenAddress, result.args.ownerAddress, result.args.tokenId, result.args.network);
-          break;
-        case "get_erc721_balance":
-          output = await getERC721Balance(result.args.tokenAddress, result.args.ownerAddress, result.args.network);
-          break;
-        case "get_erc1155_balance":
-          output = await getERC1155Balance(result.args.tokenAddress, result.args.ownerAddress, result.args.tokenId, result.args.network);
           break;
         case "get_address_from_private_key":
           output = await getAddressFromPrivateKey(result.args.privateKey);
@@ -806,9 +684,6 @@ app.post("/gemini", async (req, res) => {
         case "write_contract":
           output = await writeContract(result.args.network, result.args.params /* , other params */);
           break;
-        case "get_logs":
-          output = await getLogs(result.args.network /* , other params */);
-          break;
         case "is_contract":
           output = await isContract(result.args.address, result.args.network);
           break;
@@ -833,20 +708,14 @@ app.post("/gemini", async (req, res) => {
         case "get_user_nfts":
           output = await getUserNFTs(result.args.address, result.args.network);
           break;
-        case "get_erc721_token_metadata":
-          output = await getERC721TokenMetadata(result.args.contractAddress, result.args.tokenId, result.args.network);
-          break;
-        case "get_erc1155_token_uri":
-          output = await getERC1155TokenURI(result.args.contractAddress, result.args.tokenId, result.args.network);
+        
+        
           break;
         case "check_nft_ownership":
           output = await getNFTOwnership(result.args.contractAddress, result.args.tokenId, result.args.ownerAddress, result.args.network);
           break;
         case "get_nft_balance":
           output = await getNFTBalance(result.args.contractAddress, result.args.ownerAddress, result.args.network);
-          break;
-        case "get_erc20_token_info":
-          output = await getERC20TokenInfo(result.args.tokenAddress, result.args.network);
           break;
         case "get_transaction":
           output = await getTransaction(result.args.hash, result.args.network);
@@ -872,18 +741,6 @@ app.post("/gemini", async (req, res) => {
         case "transfer_sei":
           output = await transferSei(result.args.toAddress, result.args.amount, result.args.network);
           break;
-        case "transfer_erc20":
-          output = await transferERC20(result.args.tokenAddress, result.args.toAddress, result.args.amount, result.args.network);
-          break;
-        case "approve_erc20":
-          output = await approveERC20(result.args.tokenAddress, result.args.spenderAddress, result.args.amount, result.args.network);
-          break;
-        case "transfer_erc721":
-          output = await transferERC721(result.args.tokenAddress, result.args.toAddress, result.args.tokenId, result.args.network);
-          break;
-        case "transfer_erc1155":
-          output = await transferERC1155(result.args.tokenAddress, result.args.toAddress, result.args.tokenId, result.args.amount, result.args.network);
-          break;
         case "analyze_wallet":
           output = await analyzeWallet(result.args.address, result.args.network);
           break;
@@ -903,7 +760,7 @@ app.post("/gemini", async (req, res) => {
       // Call Gemini
       const ai = new GoogleGenAI({});
       const geminiResponse = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-2.5-flash-lite",
         contents: geminiPrompt,
       });
 
@@ -936,21 +793,16 @@ app.get("/", (req: Request, res: Response) => {
       messages: "/messages",
       health: "/health",
       getbalance: "/getbalance",
-      getERC20Balance: "/getERC20Balance",
-      getERC721Balance: "/getERC721Balance",
-      getERC1155Balance: "/getERC1155Balance",
       isNFTOwner: "/isNFTOwner",
       getAddressFromPrivateKey: "/getAddressFromPrivateKey",
 
       createWalletClient: "/createWalletClient",
-      myERC20Balance: "/myERC20Balance",
       getBlockNumber: "/getBlockNumber",
       getBlockByNumber: "/getBlockByNumber",
       getBlockByHash: "/getBlockByHash",
       getLatestBlock: "/getLatestBlock",
       readContract: "/readContract",
       writeContract: "/writeContract",
-      getLogs: "/getLogs",
       isContract: "/isContract",
       getSupportedNetworks: "/getSupportedNetworks",
       getChainInfo: "/getChainInfo",
@@ -960,10 +812,7 @@ app.get("/", (req: Request, res: Response) => {
       getNFTBalance: "/getNFTBalance",
       getNFTHistory: "/getNFTHistory",
       getUserNFTs: "/getUserNFTs",
-      getERC721TokenMetadata: "/getERC721TokenMetadata",
-      getERC1155TokenURI: "/getERC1155TokenURI",
       checkNFTOwnership: "/checkNFTOwnership",
-      getERC20TokenInfo: "/getERC20TokenInfo",
       getTransaction: "/getTransaction",
       getTransactionReceipt: "/getTransactionReceipt",
       getTransactionCount: "/getTransactionCount",
@@ -972,10 +821,6 @@ app.get("/", (req: Request, res: Response) => {
       getTransactionHistory: "/getTransactionHistory",
       getWalletActivity: "/getWalletActivity",
       transferSei: "/transferSei",
-      transferERC20: "/transferERC20",
-      approveERC20: "/approveERC20",
-      transferERC721: "/transferERC721",
-      transferERC1155: "/transferERC1155",
       analyzeWallet: "/analyzeWallet",
       gemini: "/gemini",
 
@@ -1006,13 +851,9 @@ Endpoints:
 - Messages: /messages
 - Health: /health
 - GetBalance: /getbalance
-- getERC20Balance: /getERC20Balance
-- getERC721Balance: /getERC721Balance
-- getERC1155Balance: /getERC1155Balance
 - isNFTOwner: /isNFTOwner
 - getAddressFromPrivateKey: /getAddressFromPrivateKey
 - createWalletClient: /createWalletClient
-- myERC20Balance: /myERC20Balance
 - getBlockNumber: /getBlockNumber
 - getBlockByNumber: /getBlockByNumber
 - getBlockByHash: /getBlockByHash
@@ -1028,10 +869,7 @@ Endpoints:
 - getNFTMetadata: /getNFTMetadata
 - getNFTHistory: /getNFTHistory
 - getUserNFTs: /getUserNFTs
-- getERC721TokenMetadata: /getERC721TokenMetadata
-- getERC1155TokenURI: /getERC1155TokenURI
 - checkNFTOwnership: /checkNFTOwnership
-- getERC20TokenInfo: /getERC20TokenInfo
 - getTransaction: /getTransaction
 - getTransactionReceipt: /getTransactionReceipt
 - getTransactionCount: /getTransactionCount
@@ -1040,10 +878,6 @@ Endpoints:
 - getTransactionHistory: /getTransactionHistory
 - getWalletActivity: /getWalletActivity
 - transferSei: /transferSei
-- transferERC20: /transferERC20
-- approveERC20: /approveERC20
-- transferERC721: /transferERC721
-- transferERC1155: /transferERC1155
 - analyzeWallet: /analyzeWallet
 - gemini: /gemini`
   );

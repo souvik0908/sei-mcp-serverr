@@ -6,9 +6,9 @@ import {
 } from 'viem/chains';
 
 // Default configuration values
-export const DEFAULT_NETWORK = 'sei';
-export const DEFAULT_RPC_URL = 'https://evm-rpc.sei-apis.com';
-export const DEFAULT_CHAIN_ID = 1329;
+export const DEFAULT_NETWORK = 'sei-testnet';
+export const DEFAULT_RPC_URL = 'https://evm-rpc-testnet.sei-apis.com';
+export const DEFAULT_CHAIN_ID = 1328;
 
 // SEI RPC endpoint pools for load balancing and fallback
 export const SEI_RPC_ENDPOINTS = {

@@ -14,12 +14,13 @@ export const utils = {
     formatJson: (obj: unknown): string => JSON.stringify(obj, (_, value) =>
         typeof value === 'bigint' ? value.toString() : value, 2),
 
-    validateAddress: (address: string): Address => {
-        // If it's already a valid Sei 0x address (0x followed by 40 hex chars), return it
-        if (/^0x[a-fA-F0-9]{40}$/.test(address)) {
-            return address as Address;
-        }
-
-        throw new Error(`Invalid address: ${address}`);
+    validateAddress: (address: string): string => {
+    if (/^0x[a-fA-F0-9]{40}$/.test(address)) {
+        return address; // EVM
     }
+    if (/^sei1[0-9a-z]{38}$/.test(address)) {
+        return address; // Sei
+    }
+    throw new Error(`Invalid address: ${address}`);
+}
 };
